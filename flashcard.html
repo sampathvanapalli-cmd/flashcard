@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flashcard Quiz App</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #f4f7f6;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        /* Flashcard Container */
+        .card-container {
+            width: 350px;
+            height: 250px;
+            perspective: 1000px;
+            margin-bottom: 20px;
+            cursor: pointer;
+        }
+
+        .flashcard {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.6s;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            border-radius: 10px;
+        }
+
+        /* Flip class triggered by JS */
+        .flashcard.flip {
+            transform: rotateY(180deg);
+        }
+
+        .front, .back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .front {
+            background-color: #ffffff;
+            color: #333;
+            border: 2px solid #3498db;
+        }
+
+        .back {
+            background-color: #3498db;
+            color: white;
+            transform: rotateY(180deg);
+        }
+
+        .card-counter {
+            margin-top: 10px;
+            font-size: 0.9rem;
+            color: #7f8c8d;
+        }
+
+        /* Navigation & Action Buttons */
+        .navigation-btns, .action-btns {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            background-color: #2ecc71;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background-color: #27ae60;
+        }
+
+        button.secondary {
+            background-color: #e67e22;
+        }
+        button.secondary:hover {
+            background-color: #d35400;
+        }
+
+        button.danger {
+            background-color: #e74c3c;
+        }
+        button.danger:hover {
+            background-color: #c0392b;
+        }
+
+        /* Form Area */
+        .form-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+            width: 350px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .form-container input, .form-container textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🧠 Flashcard Quiz App</h1>
+
+    <div class="card-container" onclick="toggleFlip()">
+        <div class="flashcard" id="flashcard">
+            <div class="front">
+                <h3 id="question-text">Loading question...</h3>
+                <p style="margin-top: 15px; font-size: 0.8rem; color: #3498db;">Click to Show Answer</p>
+            </div>
+            <div class="back">
+                <h3 id="answer-text">Loading answer...</h3>
+                <p style="margin-top: 15px; font-size: 0.8rem; color: #fff;">Click to Show Question</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="navigation-btns">
+        <button onclick="prevCard()" class="secondary">⏮ Prev</button>
+        <span class="card-counter" id="card-counter">Card 0 of 0</span>
+        <button onclick="nextCard()" class="secondary">Next ⏭</button>
+    </div>
+
+    <div class="action-btns">
+        <button onclick="startEdit()" style="background-color: #9b59b6;">✏️ Edit Current</button>
+        <button onclick="deleteCard()" class="danger">🗑 Delete Current</button>
+    </div>
+
+    <div class="form-container">
+        <h3 id="form-title">Add New Flashcard</h3>
+        <input type="text" id="form-question" placeholder="Enter Question" required>
+        <textarea id="form-answer" placeholder="Enter Answer" rows="3" required></textarea>
+        <button onclick="saveCard()" id="save-btn">➕ Add Card</button>
+        <button onclick="cancelEdit()" id="cancel-btn" class="danger" style="display:none;">Cancel Edit</button>
+    </div>
+
+    <script>
+        // Default starter flashcards
+        let flashcards = [
+            { question: "What is the capital of France?", answer: "Paris" },
+            { question: "What does HTML stand for?", answer: "HyperText Markup Language" },
+            { question: "What is 5 + 7?", answer: "12" }
+        ];
+
+        let currentIndex = 0;
+        let isEditing = false;
+        let editIndex = null;
+
+        // DOM elements
+        const flashcardEl = document.getElementById('flashcard');
+        const questionTextEl = document.getElementById('question-text');
+        const answerTextEl = document.getElementById('answer-text');
+        const cardCounterEl = document.getElementById('card-counter');
+        const formTitleEl = document.getElementById('form-title');
+        const formQuestionEl = document.getElementById('form-question');
+        const formAnswerEl = document.getElementById('form-answer');
+        const saveBtnEl = document.getElementById('save-btn');
+        const cancelBtnEl = document.getElementById('cancel-btn');
+
+        // Initial update
+        updateCardDisplay();
+
+        // 1. Flip Flashcard
+        function toggleFlip() {
+            flashcardEl.classList.toggle('flip');
+        }
+
+        // 2. Navigation
+        function updateCardDisplay() {
+            // Reset flip status to show front side whenever navigating
+            flashcardEl.classList.remove('flip');
+
+            if (flashcards.length === 0) {
+                questionTextEl.innerText = "No cards available! Add one below.";
+                answerTextEl.innerText = "No cards available!";
+                cardCounterEl.innerText = "Card 0 of 0";
+                return;
+            }
+
+            questionTextEl.innerText = flashcards[currentIndex].question;
+            answerTextEl.innerText = flashcards[currentIndex].answer;
+            cardCounterEl.innerText = `Card ${currentIndex + 1} of ${flashcards.length}`;
+        }
+
+        function nextCard() {
+            if (flashcards.length === 0) return;
+            currentIndex = (currentIndex + 1) % flashcards.length;
+            updateCardDisplay();
+        }
+
+        function prevCard() {
+            if (flashcards.length === 0) return;
+            currentIndex = (currentIndex - 1 + flashcards.length) % flashcards.length;
+            updateCardDisplay();
+        }
+
+        // 3. Add & Edit (Save Function)
+        function saveCard() {
+            const q = formQuestionEl.value.trim();
+            const a = formAnswerEl.value.trim();
+
+            if (!q || !a) {
+                alert("Please fill out both the question and answer!");
+                return;
+            }
+
+            if (isEditing) {
+                // Update existing card
+                flashcards[editIndex] = { question: q, answer: a };
+                isEditing = false;
+                editIndex = null;
+                formTitleEl.innerText = "Add New Flashcard";
+                saveBtnEl.innerText = "➕ Add Card";
+                cancelBtnEl.style.display = "none";
+            } else {
+                // Add new card
+                flashcards.push({ question: q, answer: a });
+                currentIndex = flashcards.length - 1; // Go to the new card
+            }
+
+            // Clear inputs
+            formQuestionEl.value = "";
+            formAnswerEl.value = "";
+            
+            updateCardDisplay();
+        }
+
+        // 4. Trigger Edit Mode
+        function startEdit() {
+            if (flashcards.length === 0) return;
+            
+            isEditing = true;
+            editIndex = currentIndex;
+            
+            formTitleEl.innerText = "✏️ Edit Flashcard";
+            formQuestionEl.value = flashcards[currentIndex].question;
+            formAnswerEl.value = flashcards[currentIndex].answer;
+            saveBtnEl.innerText = "💾 Update Card";
+            cancelBtnEl.style.display = "block";
+        }
+
+        function cancelEdit() {
+            isEditing = false;
+            editIndex = null;
+            formQuestionEl.value = "";
+            formAnswerEl.value = "";
+            formTitleEl.innerText = "Add New Flashcard";
+            saveBtnEl.innerText = "➕ Add Card";
+            cancelBtnEl.style.display = "none";
+        }
+
+        // 5. Delete Card
+        function deleteCard() {
+            if (flashcards.length === 0) return;
+
+            if (confirm("Are you sure you want to delete this card?")) {
+                flashcards.splice(currentIndex, 1);
+                
+                // Adjust current index so it doesn't go out of bounds
+                if (currentIndex >= flashcards.length && flashcards.length > 0) {
+                    currentIndex = flashcards.length - 1;
+                } else if (flashcards.length === 0) {
+                    currentIndex = 0;
+                }
+                
+                cancelEdit(); // Reset form if they were editing the deleted card
+                updateCardDisplay();
+            }
+        }
+    </script>
+</body>
+</html>
